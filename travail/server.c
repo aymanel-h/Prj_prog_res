@@ -47,6 +47,10 @@ int main(int argc , char *argv[]) {
         int new_clientfd = accept(listen_fd, (struct sockaddr *)&client_addr, &addrlen);
         die(new_clientfd, "Accept");
         printf("New client on addr(%s:%hu) and fd %d\n", inet_ntoa(client_addr.sin_addr),ntohs(client_addr.sin_port), new_clientfd);
+
+		close(listen_fd);
+
+		return EXIT_SUCCESS;
 	
 }
 
