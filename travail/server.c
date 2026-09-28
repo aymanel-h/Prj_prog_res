@@ -9,40 +9,7 @@
 #include <poll.h>
 #include "common.h"
 
-void die(int ret_value, const char *msg) {
-    if (ret_value == -1) {
-        perror(msg);
-        exit(EXIT_FAILURE);
-    }
-}
 
-int read_from_socket(int socket_fd, void* buf, int size) {
-    int size_read = 0;
-    int ret_value = 0;
-    while (size_read != size) {
-        ret_value = read(socket_fd, (char*)(buf) + size_read, size - size_read);
-        die(ret_value, "reading from socket");
-        if (ret_value == 0) {
-            return 0;
-        }
-        size_read += ret_value;
-    }
-    return size_read;
-}
-
-int write_on_socket(int socket_fd, const void* buf, int size) {
-    int size_written = 0;
-    int ret_value = 0;
-    while (size_written != size) {
-        ret_value = write(socket_fd, (const char*)(buf) + size_written, size - size_written);
-        die(ret_value, "writing on socket");
-        if (ret_value == 0) {
-            return 0;
-        }
-        size_written += ret_value;
-    }
-    return size_written;
-}
 
 int main(int argc, char *argv[]) {
     if (argc != 2) {

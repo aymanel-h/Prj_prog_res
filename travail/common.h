@@ -1,6 +1,9 @@
 #define MSG_LEN 1024
 #define SERV_PORT "8080"
 #define SERV_ADDR "127.0.0.1"
+#define BACKLOG 20
+#define FD_TAB_SIZE 128
+
 
 struct info{
     short s;
@@ -38,7 +41,7 @@ int write_on_socket(int fd, void *ptr, int size)
  
 // on s'assure qu'on lit exactement size octets 
 // retourne 1 si tout est lu et 0 si l'autre coté s'est deconnecte et enfin -1 si erreur
-int read_on_socket(int fd, void *ptr, int size) 
+int read_from_socket(int fd, void *ptr, int size) 
 {
 	int read_bytes = 0;
 	while (read_bytes != size) {
