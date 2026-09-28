@@ -8,6 +8,8 @@
 #include <unistd.h>
 #include <poll.h>
 #include "common.h"
+#include "add_client.h"
+
 
 
 
@@ -34,6 +36,8 @@ int main(int argc, char *argv[]) {
     ret_value = listen(listen_fd, BACKLOG);
     die(ret_value, "On listening");
 
+    struct infos_client *head = NULL;
+
     struct pollfd fds[FD_TAB_SIZE];
     fds[0].fd = listen_fd;
     fds[0].events = POLLIN;
@@ -50,9 +54,14 @@ int main(int argc, char *argv[]) {
 
         for (int i = 0; i < FD_TAB_SIZE; i++) {
             if (i == 0 && (fds[0].revents & POLLIN)) {
+                struct sockaddr_in client_addr;
+                socklen_t addr_len = sizeof(client_addr);
                 fds[0].revents = 0;
-                int new_fd = accept(fds[0].fd, NULL, NULL);
+                int new_fd = accept(fds[0].fd, (struct sockaddr *)&client_addr, &addr_len);
                 die(new_fd, "On Accepting");
+
+                add_client(&head, new_fd, client_addr);
+                printf("New client connected: %s:%d\n", inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
 
                 for (int j = 0; j < FD_TAB_SIZE; j++) {
                     if (fds[j].fd == -1) {
@@ -69,6 +78,7 @@ int main(int argc, char *argv[]) {
 
                 int size_read = read_from_socket(fds[i].fd, &size_of_next_msg, sizeof(int));
                 if (size_read == 0) {
+
                     close(fds[i].fd);
                     fds[i].fd = -1;
                     fds[i].events = 0;
@@ -84,6 +94,7 @@ int main(int argc, char *argv[]) {
                     fds[i].fd = -1;
                     fds[i].events = 0;
                     fds[i].revents = 0;
+                    delete_client(&head, fds[i].fd);
                     continue;
                 }
 
@@ -93,6 +104,7 @@ int main(int argc, char *argv[]) {
                     fds[i].fd = -1;
                     fds[i].events = 0;
                     fds[i].revents = 0;
+                    delete_client(&head, fds[i].fd);
                     continue;
                 }
 
@@ -102,8 +114,10 @@ int main(int argc, char *argv[]) {
                 free(msg_received);
             }
         }
+        
     }
 
+    delete_all_clients(&head);
     close(listen_fd);
     return EXIT_SUCCESS;
 }
