@@ -1,0 +1,55 @@
+#define MSG_LEN 1024
+#define SERV_PORT "8080"
+#define SERV_ADDR "127.0.0.1"
+
+struct info{
+    short s;
+    long l;
+};
+
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+ 
+// Si ret_value < 0 : affiche l'erreur et quitte
+static void die(int ret_value, const char *msg) 
+{
+	if (ret_value < 0) {
+		perror(msg);
+		exit(EXIT_FAILURE);
+	}
+}
+ 
+// on s'assure qu'elle ecrit exactement size octets 
+// retourne 1 si tout est envoyé et -1 si ya une erreur
+int write_on_socket(int fd, void *ptr, int size) 
+{
+	int written_bytes = 0;
+	while (written_bytes != size) {
+		int ret_value = write(fd, (char *)(ptr) + written_bytes, size - written_bytes);
+		if (ret_value <= 0) {
+			return -1;
+		}
+		written_bytes += ret_value;
+	}
+	return 1;
+}
+ 
+// on s'assure qu'on lit exactement size octets 
+// retourne 1 si tout est lu et 0 si l'autre coté s'est deconnecte et enfin -1 si erreur
+int read_on_socket(int fd, void *ptr, int size) 
+{
+	int read_bytes = 0;
+	while (read_bytes != size) {
+		int ret_value = read(fd, (char *)(ptr) + read_bytes, size - read_bytes);
+		if (ret_value == 0) {
+			return 0;
+		}
+		if (ret_value < 0) {
+			return -1;
+		}
+		read_bytes += ret_value;
+	}
+	return 1;
+}
