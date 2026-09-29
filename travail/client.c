@@ -66,17 +66,17 @@ void run_client(int sockfd) {
                 break;
             }
             //dernier changement ajout de req2.1
-            else if(strncmp(buffer, "/nick ", 6)){
+            else if(strncmp(buffer, "/nick ", 6) == 0){
                 msg.type = NICKNAME_NEW;
                 char *nick = buffer + 6;
                 if(strlen(nick)>128 || strlen(nick) == 0 ){
-                    printf("nickname passed is too long pls choose a nickname under 128 charachters");
+                    printf("nickname passed is too long pls choose a nickname under 128 charachters \n");
                     continue;
                 }
                 int valide = 1;
                 for(int i = 0; i<strlen(nick); i++){
                     if(!isalnum((unsigned char)nick[i])){
-                        printf("Nickname contains a non valid character, please retry...");
+                        printf("Nickname contains a non valid character, please retry... \n");
                         valide = 0;
                         break;
                     }
@@ -98,9 +98,9 @@ void run_client(int sockfd) {
         }
 
         if (fds[1].revents & POLLIN) {
-            struct message msg;
+            struct message rep;
             char *payload = NULL;
-            int ret=recv_msg(sockfd, &msg, &payload);
+            int ret=recv_msg(sockfd, &rep, &payload);
             if (ret <= 0) {
                 printf("Server disconnected\n");
                 break;
@@ -108,6 +108,7 @@ void run_client(int sockfd) {
             if (payload != NULL){
                 printf("Received from server: %s\n", payload);
             }
+            
             free(payload);
         }
     }

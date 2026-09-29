@@ -95,12 +95,43 @@ int main(int argc, char *argv[]) {
                 if (payload != NULL && strcmp(payload, "/quit") == 0) {
                     free(payload);
                     close(fds[i].fd);
+                    delete_client(&head, fds[i].fd);
+                    printf("[DEBUG] Client fd=%d supprimé de la liste\n",fds[i].fd);
                     fds[i].fd = -1;
                     fds[i].events = 0;
                     fds[i].revents = 0;
-                    delete_client(&head, fds[i].fd);
                     continue;
                 }
+                
+
+                if (msg.type == NICKNAME_NEW) {
+                    struct message rep;
+                    memset(&rep, 0, sizeof(struct message));
+                    rep.type = NICKNAME_NEW;
+
+                    if (isnick_valid(head, msg.infos, fds[i].fd)) {
+                        set_cl_nick(head, fds[i].fd, msg.infos);
+                        strncpy(rep.infos, msg.infos, INFOS_LEN - 1);
+
+                        char welcome[256];
+                        snprintf(welcome, sizeof(welcome), "[Server] : Welcome on the chat %s\n", msg.infos);
+                        rep.pld_len = strlen(welcome) + 1;
+                        send_msg(fds[i].fd, &rep, welcome);
+                    }
+
+                    else {
+                        // Pseudo déjà pris
+                        char err_msg[] = "[Server] : Nickname already taken, please choose another one.\n";
+                        rep.pld_len = strlen(err_msg) + 1;
+                        send_msg(fds[i].fd, &rep, err_msg);
+                    }
+
+                    if (payload != NULL){ 
+                        free(payload);
+                        continue; 
+                    }
+                }
+                            
 
 
                 if(msg.pld_len > 0 && payload != NULL) {

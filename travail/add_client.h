@@ -6,6 +6,7 @@
 
 struct infos_client {
     int fd;
+    char nickname[INFOS_LEN];
     struct sockaddr_in client_addr;
     struct infos_client *next;
 };
@@ -19,6 +20,7 @@ void add_client(struct infos_client **head, int fd, struct sockaddr_in client_ad
     }
     new_client->fd = fd;
     new_client->client_addr = client_addr;
+    memset(new_client->nickname, 0, sizeof(new_client->nickname));
     new_client->next = *head;
     *head = new_client;
 }
@@ -52,5 +54,32 @@ void delete_all_clients(struct infos_client **head) {
         current = next;
     }
     *head = NULL;
+}
+
+int isnick_valid(struct infos_client *head, const char *nick, int curr_fd) {
+    struct infos_client *curr = head;
+    while (curr != NULL) {
+        
+        if (curr->fd != curr_fd && strlen(curr->nickname) > 0) {
+            if (strcmp(curr->nickname, nick) == 0) {
+                return 0; 
+            }
+        }
+        curr = curr->next;
+    }
+    return 1;
+}
+
+
+void set_cl_nick(struct infos_client *head,int fd,const char *nick){
+    struct infos_client *curr=head;
+    while(curr!=NULL){
+        if(curr->fd==fd){
+            strncpy(curr->nickname,nick,INFOS_LEN);
+            curr->nickname[INFOS_LEN-1]='\0';
+            return;
+        }
+        curr=curr->next;
+    }
 }
 #endif

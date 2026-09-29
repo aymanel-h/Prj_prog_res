@@ -72,19 +72,22 @@ static inline int send_msg(int fd, struct message *msg, const char *payload) {
 
 
 
-
 static inline int recv_msg(int fd, struct message *msg, char **payload) { 
-
-	int ret=read_from_socket(fd, msg, sizeof(struct message));
-	die(ret, "Error receiving message length");
-	if(msg->pld_len > 0) {
-		*payload = malloc(msg->pld_len * sizeof(char));
-		ret=read_from_socket(fd, *payload, msg->pld_len);
-		die(ret, "Error receiving message payload");	
-	}
-	else{
-		*payload = NULL;
-	}
-	return 1;
-
+    int ret = read_from_socket(fd, msg, sizeof(struct message));
+    if (ret <= 0) {
+        return ret;
+    }
+    if (msg->pld_len > 0) {
+        *payload = malloc(msg->pld_len);
+        if (*payload == NULL) return -1;
+        ret = read_from_socket(fd, *payload, msg->pld_len);
+        if (ret <= 0) {
+            free(*payload);
+            *payload = NULL;
+            return ret;
+        }    
+    } else {
+        *payload = NULL;
+    }
+    return 1;
 }
