@@ -66,34 +66,126 @@ void run_client(int sockfd) {
                 send_msg(sockfd, &msg, buffer);
                 break;
             }
-            //dernier changement ajout de req2.1
-            else if(strncmp(buffer, "/nick ", 6) == 0){
-                msg.type = NICKNAME_NEW;
+
+            
+            else if (strncmp(buffer, "/nick ", 6) == 0) {
                 char *nick = buffer + 6;
-                if(strlen(nick)>128 || strlen(nick) == 0 ){
+                if (strlen(nick) >= 128 || strlen(nick) == 0) {
                     printf("nickname passed is too long pls choose a nickname under 128 charachters \n");
                     continue;
                 }
                 int valide = 1;
-                for(int i = 0; i<strlen(nick); i++){
-                    if(!isalnum((unsigned char)nick[i])){
+                for (int i = 0; i < strlen(nick); i++) {
+                    if (!isalnum((unsigned char)nick[i])) {
                         printf("Nickname contains a non valid character, please retry... \n");
                         valide = 0;
                         break;
                     }
                 }
-                if(!valide){
+                if (!valide) {
                     continue;
                 }
                 msg.pld_len = 0;
-                msg.type = NICKNAME_NEW ;
+                msg.type = NICKNAME_NEW;
                 strcpy(msg.infos, nick);
+                if (strlen(current_nick) > 0) {
+                    strncpy(msg.nick_sender, current_nick, NICK_LEN - 1);
+                    msg.nick_sender[NICK_LEN - 1] = '\0';
+                }
                 send_msg(sockfd, &msg, NULL);
                 continue;
             }
-            else if(strlen(buffer) > 0) {
+
+            else if (strcmp(buffer, "/who") == 0) {
+                msg.type = NICKNAME_LIST;
+                msg.pld_len = 0;
+                msg.infos[0] = '\0';
+                if (strlen(current_nick) > 0) {
+                    strncpy(msg.nick_sender, current_nick, NICK_LEN - 1);
+                }
+                send_msg(sockfd, &msg, NULL);
+                continue;
+            }
+
+
+            else if (strncmp(buffer, "/whois ", 7) == 0) {
+                char *target = buffer + 7;
+                while (*target == ' ') target++; 
+
+                if (strlen(target) == 0) {
+                    printf("Usage: /whois <nickname>\n");
+                    continue;
+                }
+
+                msg.type = NICKNAME_INFOS;
+                msg.pld_len = 0;
+                strncpy(msg.infos, target, INFOS_LEN - 1);
+                msg.infos[INFOS_LEN - 1] = '\0';
+                if (strlen(current_nick) > 0) {
+                    strncpy(msg.nick_sender, current_nick, NICK_LEN - 1);
+                }
+                send_msg(sockfd, &msg, NULL);
+                continue;
+            }
+
+
+            else if (strncmp(buffer, "/msgall ", 8) == 0) {
+                if (strlen(current_nick) == 0) {
+                    printf("[Client] : Please set a nickname first with /nick <name>.\n");
+                    continue;
+                }
+                char *text = buffer + 8;
+                while (*text == ' ') text++;
+                if (strlen(text) == 0) {
+                    printf("Usage: /msgall <message>\n");
+                    continue;
+                }
+
+                msg.type = BROADCAST_SEND;
+                msg.infos[0] = '\0';
+                strncpy(msg.nick_sender, current_nick, NICK_LEN - 1);
+                msg.pld_len = strlen(text) + 1;
+                send_msg(sockfd, &msg, text);
+                continue;
+            }
+
+            else if (strncmp(buffer, "/msg ", 5) == 0) {
+                if (strlen(current_nick) == 0) {
+                    printf("[Client] : Please set a nickname first with /nick <name>.\n");
+                    continue;
+                }
+
+                char *target = buffer + 5;
+                char *space = strchr(target, ' ');
+
+                if (space == NULL) {
+                    printf("Usage: /msg <nickname> <message>\n");
+                    continue;
+                }
+
+                *space = '\0';            
+                char *text = space + 1;   
+
+                msg.type = UNICAST_SEND;
+                strncpy(msg.infos, target, INFOS_LEN - 1);
+                msg.infos[INFOS_LEN - 1] = '\0';
+
+                strncpy(msg.nick_sender, current_nick, NICK_LEN - 1);
+                msg.nick_sender[NICK_LEN - 1] = '\0';
+
+                msg.pld_len = strlen(text) + 1;
+                send_msg(sockfd, &msg, text);
+                continue;
+            }
+
+            else if (strlen(buffer) > 0) {
+                if (strlen(current_nick) == 0) {
+                    printf("[Client] : You must choose a nickname with /nick <name> before chatting!\n");
+                    continue;
+                 }
                 int size = strlen(buffer) + 1;
                 msg.pld_len = size;
+                strncpy(msg.nick_sender, current_nick, NICK_LEN - 1);
                 send_msg(sockfd, &msg, buffer);
             }
         }

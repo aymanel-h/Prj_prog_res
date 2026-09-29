@@ -103,6 +103,112 @@ int main(int argc, char *argv[]) {
                     continue;
                 }
                 
+                
+                if (msg.type == NICKNAME_INFOS) {
+                    struct infos_client *target = get_client_by_nick(head, msg.infos);
+                    char response_pld[512];
+
+                    struct message rep;
+                    memset(&rep, 0, sizeof(struct message));
+                    rep.type = NICKNAME_INFOS;
+                    strncpy(rep.infos, msg.infos, INFOS_LEN - 1);
+                    rep.infos[INFOS_LEN - 1] = '\0';
+
+                    if (target != NULL) {
+                        snprintf(response_pld, sizeof(response_pld),
+                                 "[Server] : %s connected since %s with IP address %s and port number %d\n",
+                                 target->nickname,
+                                 target->connected_since,
+                                 inet_ntoa(target->client_addr.sin_addr),
+                                 ntohs(target->client_addr.sin_port));
+                    } else {
+                        snprintf(response_pld, sizeof(response_pld),
+                                 "[Server] : User '%s' does not exist.\n", msg.infos);
+                    }
+
+                    rep.pld_len = strlen(response_pld) + 1;
+                    send_msg(fds[i].fd, &rep, response_pld);
+
+                    if (payload != NULL) free(payload);
+                    continue;
+                }
+                if (msg.type == NICKNAME_LIST) {
+                    char response_pld[4096] = "[Server] : Online users are\n";
+                    struct infos_client *curr = head;
+                    while (curr != NULL) {
+                        if (strlen(curr->nickname) > 0) {
+                            strcat(response_pld, " - ");
+                            strcat(response_pld, curr->nickname);
+                            strcat(response_pld, "\n");
+                        }
+                        curr = curr->next;
+                    }
+
+                    struct message rep;
+                    memset(&rep, 0, sizeof(struct message));
+                    rep.type = NICKNAME_LIST;
+                    rep.pld_len = strlen(response_pld) + 1;
+
+                    send_msg(fds[i].fd, &rep, response_pld);
+
+                    if (payload != NULL) free(payload);
+                    continue;
+                }
+                
+                if (msg.type == BROADCAST_SEND) {
+                    char formatted_msg[MSG_LEN + 150];
+                    snprintf(formatted_msg, sizeof(formatted_msg), "[%s] : %s\n", msg.nick_sender, payload ? payload : "");
+
+                    struct message out_msg;
+                    memset(&out_msg, 0, sizeof(struct message));
+                    out_msg.type = BROADCAST_SEND;
+                    strncpy(out_msg.nick_sender, msg.nick_sender, NICK_LEN - 1);
+                    out_msg.pld_len = strlen(formatted_msg) + 1;
+
+                    struct infos_client *curr = head;
+                    while (curr != NULL) {
+                        if (curr->fd != fds[i].fd && strlen(curr->nickname) > 0) {
+                            send_msg(curr->fd, &out_msg, formatted_msg);
+                        }
+                        curr = curr->next;
+                    }
+
+                    if (payload != NULL) free(payload);
+                    continue;
+                }
+
+                if (msg.type == UNICAST_SEND) {
+                    struct infos_client *dest = get_client_by_nick(head, msg.infos);
+
+                    if (dest != NULL) {
+                        char formatted_msg[MSG_LEN + 150];
+                        snprintf(formatted_msg, sizeof(formatted_msg), "[%s] : %s\n", msg.nick_sender, payload);
+
+                        struct message out_msg;
+                        memset(&out_msg, 0, sizeof(struct message));
+                        out_msg.type = UNICAST_SEND;
+                        strncpy(out_msg.nick_sender, msg.nick_sender, NICK_LEN - 1);
+                        out_msg.nick_sender[NICK_LEN - 1] = '\0';
+                        out_msg.pld_len = strlen(formatted_msg) + 1;
+
+                        send_msg(dest->fd, &out_msg, formatted_msg);
+                    } else {
+                        char err_pld[256];
+                        snprintf(err_pld, sizeof(err_pld), "[Server] : User '%s' does not exist.\n", msg.infos);
+
+                        struct message rep;
+                        memset(&rep, 0, sizeof(struct message));
+                        rep.type = UNICAST_SEND;
+                        strncpy(rep.infos, msg.infos, INFOS_LEN - 1);
+                        rep.infos[INFOS_LEN - 1] = '\0';
+                        rep.pld_len = strlen(err_pld) + 1;
+
+                        send_msg(fds[i].fd, &rep, err_pld);
+                    }
+
+                    if (payload != NULL) free(payload);
+                    continue;
+                }
 
                 if (msg.type == NICKNAME_NEW) {
                     struct message rep;

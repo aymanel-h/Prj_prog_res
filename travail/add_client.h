@@ -4,10 +4,13 @@
 #include <netinet/in.h>
 #include <sys/socket.h>
 
+#include<time.h>
+
 struct infos_client {
     int fd;
     char nickname[INFOS_LEN];
     struct sockaddr_in client_addr;
+    char connected_since[32];
     struct infos_client *next;
 };
 
@@ -21,6 +24,11 @@ void add_client(struct infos_client **head, int fd, struct sockaddr_in client_ad
     new_client->fd = fd;
     new_client->client_addr = client_addr;
     memset(new_client->nickname, 0, sizeof(new_client->nickname));
+
+    time_t now = time(NULL);
+    struct tm *tm_info = localtime(&now);
+    strftime(new_client->connected_since, sizeof(new_client->connected_since), "%Y%m/%d@%H:%M", tm_info);
+
     new_client->next = *head;
     *head = new_client;
 }
@@ -82,4 +90,16 @@ void set_cl_nick(struct infos_client *head,int fd,const char *nick){
         curr=curr->next;
     }
 }
+
+static inline struct infos_client *get_client_by_nick(struct infos_client *head, const char *nick) {
+    struct infos_client *curr = head;
+    while (curr != NULL) {
+        if (strlen(curr->nickname) > 0 && strcmp(curr->nickname, nick) == 0) {
+            return curr;
+        }
+        curr = curr->next;
+    }
+    return NULL;
+}
+
 #endif
