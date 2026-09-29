@@ -64,6 +64,17 @@ void run_client(int sockfd) {
                 send_msg(sockfd, &msg, buffer);
                 break;
             }
+            //dernier changement ajout de req2.1
+            if(startswith(buffer,"/nick")){
+                msg.type = NICKNAME_NEW;
+                char *nick = buffer + 6;
+                if(strlen(nick)>128){
+                    printf("nickname passed is too long pls choose a nickname under 128 charachters");
+                }
+
+
+
+            }
 
             if (strlen(buffer) > 0) {
                 int size = strlen(buffer) + 1;
