@@ -37,6 +37,7 @@ void run_client(int sockfd) {
     fds[1].events = POLLIN;
     fds[1].revents = 0;
 
+    char current_nick[NICK_LEN] = "";
     
     
     char buffer[MSG_LEN];
@@ -107,6 +108,12 @@ void run_client(int sockfd) {
             };
             if (payload != NULL){
                 printf("Received from server: %s\n", payload);
+            }
+           if (rep.type == NICKNAME_NEW) {
+                if (strlen(rep.infos) > 0) {
+                    strncpy(current_nick, rep.infos, NICK_LEN - 1);
+                    current_nick[NICK_LEN - 1] = '\0';
+                }
             }
             
             free(payload);

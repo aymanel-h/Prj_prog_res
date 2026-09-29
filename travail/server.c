@@ -112,7 +112,7 @@ int main(int argc, char *argv[]) {
                     if (isnick_valid(head, msg.infos, fds[i].fd)) {
                         set_cl_nick(head, fds[i].fd, msg.infos);
                         strncpy(rep.infos, msg.infos, INFOS_LEN - 1);
-
+                        rep.infos[INFOS_LEN - 1] = '\0';
                         char welcome[256];
                         snprintf(welcome, sizeof(welcome), "[Server] : Welcome on the chat %s\n", msg.infos);
                         rep.pld_len = strlen(welcome) + 1;
@@ -123,13 +123,15 @@ int main(int argc, char *argv[]) {
                         // Pseudo déjà pris
                         char err_msg[] = "[Server] : Nickname already taken, please choose another one.\n";
                         rep.pld_len = strlen(err_msg) + 1;
+                        rep.infos[0]='\0';
                         send_msg(fds[i].fd, &rep, err_msg);
                     }
 
                     if (payload != NULL){ 
                         free(payload);
-                        continue; 
                     }
+                    continue; 
+
                 }
                             
 
