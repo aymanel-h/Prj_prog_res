@@ -3,7 +3,7 @@
 #define SERV_ADDR "127.0.0.1"
 #define BACKLOG 20
 #define FD_TAB_SIZE 128
-
+#include "msg_struct.h"
 
 struct info{
     short s;
@@ -26,7 +26,7 @@ static void die(int ret_value, const char *msg)
  
 // on s'assure qu'elle ecrit exactement size octets 
 // retourne 1 si tout est envoyé et -1 si ya une erreur
-int write_on_socket(int fd, void *ptr, int size) 
+int write_on_socket(int fd, const void *ptr, int size) 
 {
 	int written_bytes = 0;
 	while (written_bytes != size) {
@@ -41,7 +41,7 @@ int write_on_socket(int fd, void *ptr, int size)
  
 // on s'assure qu'on lit exactement size octets 
 // retourne 1 si tout est lu et 0 si l'autre coté s'est deconnecte et enfin -1 si erreur
-int read_from_socket(int fd, void *ptr, int size) 
+int read_from_socket(int fd, const void *ptr, int size) 
 {
 	int read_bytes = 0;
 	while (read_bytes != size) {
@@ -55,4 +55,36 @@ int read_from_socket(int fd, void *ptr, int size)
 		read_bytes += ret_value;
 	}
 	return 1;
+}
+
+
+static inline int send_msg(int fd, struct message *msg, const char *payload) {
+	 //send_msg function sends a message struct and its payload over the socket req2.0
+
+    int ret = write_on_socket(fd, msg, sizeof(struct message));
+    die(ret, "Error sending message length");
+    if(msg->pld_len > 0 && payload != NULL) {
+        ret = write_on_socket(fd, payload, msg->pld_len);
+        die(ret, "Error sending message payload");
+    }
+    return 1;
+}
+
+
+
+
+static inline int recv_msg(int fd, struct message *msg, char **payload) { 
+
+	int ret=read_from_socket(fd, msg, sizeof(struct message));
+	die(ret, "Error receiving message length");
+	if(msg->pld_len > 0) {
+		*payload = malloc(msg->pld_len * sizeof(char));
+		ret=read_from_socket(fd, *payload, msg->pld_len);
+		die(ret, "Error receiving message payload");	
+	}
+	else{
+		*payload = NULL;
+	}
+	return 1;
+
 }

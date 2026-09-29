@@ -10,7 +10,6 @@
 #include "common.h"
 
 
-
 int handle_connect(const char *server_family, const char *server_port) {
     int fd = socket(AF_INET, SOCK_STREAM, 0);
     die(fd, "Socket Creation");
@@ -37,6 +36,8 @@ void run_client(int sockfd) {
     fds[1].events = POLLIN;
     fds[1].revents = 0;
 
+    
+    
     char buffer[MSG_LEN];
 
     while (1) {
@@ -44,41 +45,48 @@ void run_client(int sockfd) {
         die(ret, "poll()");
 
         if (fds[0].revents & POLLIN) {
+            struct message msg;
+            memset(&msg, 0, sizeof(struct message));
+
+            msg.type = ECHO_SEND;
+            
             memset(buffer, 0, MSG_LEN);
             if (fgets(buffer, MSG_LEN, stdin) == NULL) {
                 break;
             }
+
+
             buffer[strcspn(buffer, "\n")] = 0;
 
+
             if (strcmp(buffer, "/quit") == 0) {
-                int size = 6;
-                write_on_socket(sockfd, &size, sizeof(int));
-                write_on_socket(sockfd, buffer, size);
+                msg.pld_len = strlen(buffer) + 1;
+                send_msg(sockfd, &msg, buffer);
                 break;
             }
 
             if (strlen(buffer) > 0) {
                 int size = strlen(buffer) + 1;
-                write_on_socket(sockfd, &size, sizeof(int));
-                write_on_socket(sockfd, buffer, size);
-            }
+                msg.pld_len = size;
+                send_msg(sockfd, &msg, buffer);}
         }
 
         if (fds[1].revents & POLLIN) {
-            int size_msg = 0;
-            int ret_read = read_from_socket(sockfd, &size_msg, sizeof(int));
-            if (ret_read == 0) {
+            struct message msg;
+            char *payload = NULL;
+            int ret=recv_msg(sockfd, &msg, &payload);
+            if (ret <= 0) {
                 printf("Server disconnected\n");
                 break;
+            };
+            if (payload != NULL){
+                printf("Received from server: %s\n", payload);
             }
-
-            char *msg = malloc(size_msg * sizeof(char));
-            read_from_socket(sockfd, msg, size_msg);
-            printf("Received from server: %s\n", msg);
-            free(msg);
+            free(payload);
         }
     }
 }
+
 
 int main(int argc, char *argv[]) {
     if (argc != 3) {

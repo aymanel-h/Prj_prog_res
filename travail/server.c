@@ -12,7 +12,6 @@
 
 
 
-
 int main(int argc, char *argv[]) {
     if (argc != 2) {
         fprintf(stderr, "Usage: %s <server_port>\n", argv[0]);
@@ -74,32 +73,27 @@ int main(int argc, char *argv[]) {
             }
             else if (i != 0 && (fds[i].revents & POLLIN)) {
                 fds[i].revents = 0;
-                int size_of_next_msg = 0;
-
-                int size_read = read_from_socket(fds[i].fd, &size_of_next_msg, sizeof(int));
-                if (size_read == 0) {
-
-                    close(fds[i].fd);
-                    fds[i].fd = -1;
-                    fds[i].events = 0;
-                    fds[i].revents = 0;
-                    continue;
+                struct message msg;
+                char *payload = NULL;
+                int ret=recv_msg(fds[i].fd, &msg, &payload);
+                if (ret <= 0) {
+                if (ret < 0) {
+                    fprintf(stderr, "Error receiving message from client\n");
+                } 
+                else {
+                    printf("Client disconnected\n");
+                }
+                close(fds[i].fd);
+                fds[i].fd = -1;
+                fds[i].events = 0;
+                fds[i].revents = 0;
+                delete_client(&head, fds[i].fd);
+                continue;
                 }
 
-                char *msg_received = malloc(size_of_next_msg * sizeof(char));
-                int nb_read = read_from_socket(fds[i].fd, msg_received, size_of_next_msg);
-                if (nb_read == 0) {
-                    free(msg_received);
-                    close(fds[i].fd);
-                    fds[i].fd = -1;
-                    fds[i].events = 0;
-                    fds[i].revents = 0;
-                    delete_client(&head, fds[i].fd);
-                    continue;
-                }
 
-                if (strcmp(msg_received, "/quit") == 0) {
-                    free(msg_received);
+                if (payload != NULL && strcmp(payload, "/quit") == 0) {
+                    free(payload);
                     close(fds[i].fd);
                     fds[i].fd = -1;
                     fds[i].events = 0;
@@ -108,10 +102,14 @@ int main(int argc, char *argv[]) {
                     continue;
                 }
 
-                write_on_socket(fds[i].fd, &size_of_next_msg, sizeof(int));
-                write_on_socket(fds[i].fd, msg_received, size_of_next_msg);
 
-                free(msg_received);
+                if(msg.pld_len > 0 && payload != NULL) {
+                    printf("Received from client: %s\n", payload);
+                }
+
+                send_msg(fds[i].fd, &msg, payload);
+
+                free(payload);
             }
         }
         
