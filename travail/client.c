@@ -8,6 +8,7 @@
 #include <unistd.h>
 #include <poll.h>
 #include "common.h"
+#include <ctype.h>
 
 
 int handle_connect(const char *server_family, const char *server_port) {
@@ -65,21 +66,35 @@ void run_client(int sockfd) {
                 break;
             }
             //dernier changement ajout de req2.1
-            if(startswith(buffer,"/nick")){
+            else if(strncmp(buffer, "/nick ", 6)){
                 msg.type = NICKNAME_NEW;
                 char *nick = buffer + 6;
-                if(strlen(nick)>128){
+                if(strlen(nick)>128 || strlen(nick) == 0 ){
                     printf("nickname passed is too long pls choose a nickname under 128 charachters");
+                    continue;
                 }
-
-
-
+                int valide = 1;
+                for(int i = 0; i<strlen(nick); i++){
+                    if(!isalnum((unsigned char)nick[i])){
+                        printf("Nickname contains a non valid character, please retry...");
+                        valide = 0;
+                        break;
+                    }
+                }
+                if(!valide){
+                    continue;
+                }
+                msg.pld_len = 0;
+                msg.type = NICKNAME_NEW ;
+                strcpy(msg.infos, nick);
+                send_msg(sockfd, &msg, NULL);
+                continue;
             }
-
-            if (strlen(buffer) > 0) {
+            else if(strlen(buffer) > 0) {
                 int size = strlen(buffer) + 1;
                 msg.pld_len = size;
-                send_msg(sockfd, &msg, buffer);}
+                send_msg(sockfd, &msg, buffer);
+            }
         }
 
         if (fds[1].revents & POLLIN) {
