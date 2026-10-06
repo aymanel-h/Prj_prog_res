@@ -107,7 +107,7 @@ void handle_broadcast(struct infos_client *head, struct message *msg, const char
 
     struct message out_msg;
     memset(&out_msg, 0, sizeof(struct message));
-    out_msg.type = BROADCAST_SEND;
+    out_msg.type = BROADCAST_SEND; 
     strncpy(out_msg.nick_sender, msg->nick_sender, NICK_LEN - 1);
     out_msg.nick_sender[NICK_LEN - 1] = '\0';
     out_msg.pld_len = strlen(formatted_msg) + 1;
@@ -151,6 +151,37 @@ void handle_unicast(struct infos_client *head, struct message *msg, const char *
     }
 }
 
+void handle_file_request(struct infos_client *head, struct message *msg, const char *payload, int sender_fd) {
+    
+    struct infos_client *dest = get_client_by_nick(head, msg->infos);
+
+    if (dest != NULL) {
+        struct message out_msg;
+        memset(&out_msg, 0, sizeof(struct message));
+        out_msg.type = FILE_REQUEST;
+        strncpy(out_msg.nick_sender, msg->nick_sender, NICK_LEN - 1);
+        out_msg.nick_sender[NICK_LEN - 1] = '\0';
+        out_msg.pld_len = strlen(payload) + 1;
+
+        send_msg(dest->fd, &out_msg, payload);
+    } 
+}
+
+void handle_file_response(struct infos_client *head, struct message *msg, const char *payload, int sender_fd) {
+    struct infos_client *dest = get_client_by_nick(head, msg->infos);
+
+    if (dest != NULL) {
+        struct message out_msg;
+        memset(&out_msg, 0, sizeof(struct message));
+        out_msg.type = msg->type; // FILE_ACCEPT or FILE_REJECT
+        strncpy(out_msg.nick_sender, msg->nick_sender, NICK_LEN - 1);
+        out_msg.nick_sender[NICK_LEN - 1] = '\0';
+        out_msg.pld_len = strlen(payload) + 1;
+
+        send_msg(dest->fd, &out_msg, payload);
+    } 
+}
+
 void dispatch_msg(struct infos_client **head, struct message *msg, char *payload, int client_fd) {
     switch (msg->type) {
         case NICKNAME_NEW:
@@ -171,6 +202,12 @@ void dispatch_msg(struct infos_client **head, struct message *msg, char *payload
 
         case UNICAST_SEND:
             handle_unicast(*head, msg, payload, client_fd);
+            break;
+        case FILE_REQUEST:
+            handle_file_request(*head, msg, payload, client_fd);
+            break;
+        case FILE_ACCEPT | FILE_REJECT:
+            handle_file_response(*head, msg, payload, client_fd);
             break;
 
         case ECHO_SEND:

@@ -190,6 +190,26 @@ void run_client(int sockfd) {
                 send_msg(sockfd, &msg, text);
                 continue;
             }
+            else if(strncmp(buffer,"/send",5) == 0) {
+                if (strlen(current_nick) == 0) {
+                    printf("[Client] : Please set a nickname first with /nick <name>.\n");
+                    continue;
+                }
+                char *text = buffer + 5;
+                while (*text == ' ') text++;
+                if (strlen(text) == 0) {
+                    printf("Usage: /send <nickname> <message>\n");
+                    continue;
+                }
+                
+                msg.type = FILE_REQUEST;
+                msg.pld_len = strlen(text) + 1;
+                strcpy(msg.nick_sender, current_nick);
+                strcpy(msg.infos, current_nick);
+                send_msg(sockfd, &msg, text);
+                
+                continue;
+            }
 
             else if (strlen(buffer) > 0) {
                 if (strlen(current_nick) == 0) {
@@ -218,6 +238,23 @@ void run_client(int sockfd) {
                 if (strlen(rep.infos) > 0) {
                     strncpy(current_nick, rep.infos, NICK_LEN - 1);
                     current_nick[NICK_LEN - 1] = '\0';
+                }
+            }
+            else if(rep.type==FILE_REQUEST){
+                char *i=strchr(payload,' ');
+                printf("user1 wants you to accept the transfer of the file named %s. Do you accept? [Y/N]\n", i+1);
+                char choice;
+                scanf(" %c", &choice);
+                if (choice == 'Y' || choice == 'y') {
+                    printf("File transfer accepted.\n");
+                    struct message rep_accept;
+                    rep_accept.type = FILE_ACCEPT   ;
+                    send_msg(sockfd, &rep_accept, "accepted");
+                } else {
+                    printf("File transfer rejected.\n");
+                    struct message rep_reject;
+                    rep_reject.type = FILE_REJECT;
+                    send_msg(sockfd, &rep_reject, "rejected");
                 }
             }
             
