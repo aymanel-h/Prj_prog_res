@@ -10,7 +10,6 @@
 #include "common.h"
 #include <ctype.h>
 
-
 int handle_connect(const char *server_name, const char *server_port) {
     struct addrinfo hints, *result, *rp;
     int sockfd;
@@ -30,7 +29,7 @@ int handle_connect(const char *server_name, const char *server_port) {
         if (sockfd == -1) {
             continue;
         }
-
+        
         if (connect(sockfd, rp->ai_addr, rp->ai_addrlen) != -1) {
             break;
         }
@@ -60,8 +59,6 @@ void run_client(int sockfd) {
     fds[1].revents = 0;
 
     char current_nick[NICK_LEN] = "";
-    
-    
     char buffer[MSG_LEN];
 
     while (1) {
@@ -71,7 +68,6 @@ void run_client(int sockfd) {
         if (fds[0].revents & POLLIN) {
             struct message msg;
             memset(&msg, 0, sizeof(struct message));
-
             msg.type = ECHO_SEND;
             
             memset(buffer, 0, MSG_LEN);
@@ -79,16 +75,13 @@ void run_client(int sockfd) {
                 break;
             }
 
-
             buffer[strcspn(buffer, "\n")] = 0;
-
 
             if (strcmp(buffer, "/quit") == 0) {
                 msg.pld_len = strlen(buffer) + 1;
                 send_msg(sockfd, &msg, buffer);
                 break;
             }
-
             
             else if (strncmp(buffer, "/nick ", 6) == 0) {
                 char *nick = buffer + 6;
@@ -129,7 +122,6 @@ void run_client(int sockfd) {
                 continue;
             }
 
-
             else if (strncmp(buffer, "/whois ", 7) == 0) {
                 char *target = buffer + 7;
                 while (*target == ' ') target++; 
@@ -149,7 +141,6 @@ void run_client(int sockfd) {
                 send_msg(sockfd, &msg, NULL);
                 continue;
             }
-
 
             else if (strncmp(buffer, "/msgall ", 8) == 0) {
                 if (strlen(current_nick) == 0) {
@@ -204,7 +195,7 @@ void run_client(int sockfd) {
                 if (strlen(current_nick) == 0) {
                     printf("[Client] : You must choose a nickname with /nick <name> before chatting!\n");
                     continue;
-                 }
+                }
                 int size = strlen(buffer) + 1;
                 msg.pld_len = size;
                 strncpy(msg.nick_sender, current_nick, NICK_LEN - 1);
@@ -215,15 +206,15 @@ void run_client(int sockfd) {
         if (fds[1].revents & POLLIN) {
             struct message rep;
             char *payload = NULL;
-            int ret=recv_msg(sockfd, &rep, &payload);
+            int ret = recv_msg(sockfd, &rep, &payload);
             if (ret <= 0) {
                 printf("Server disconnected\n");
                 break;
-            };
-            if (payload != NULL){
+            }
+            if (payload != NULL) {
                 printf("Received from server: %s\n", payload);
             }
-           if (rep.type == NICKNAME_NEW) {
+            if (rep.type == NICKNAME_NEW) {
                 if (strlen(rep.infos) > 0) {
                     strncpy(current_nick, rep.infos, NICK_LEN - 1);
                     current_nick[NICK_LEN - 1] = '\0';
@@ -234,7 +225,6 @@ void run_client(int sockfd) {
         }
     }
 }
-
 
 int main(int argc, char *argv[]) {
     if (argc != 3) {
