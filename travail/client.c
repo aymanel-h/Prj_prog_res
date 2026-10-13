@@ -94,6 +94,7 @@ struct pollfd fds[FD_TAB_SIZE];
     fds[1].events = POLLIN;
 
     char current_nick[NICK_LEN] = "";
+    char pending_file[MSG_LEN] = "";
     char buffer[MSG_LEN];
 
     while (1) {
@@ -270,6 +271,7 @@ struct pollfd fds[FD_TAB_SIZE];
                 msg.pld_len = strlen(file_name) + 1;
                 strncpy(msg.nick_sender, current_nick, NICK_LEN - 1);
                 strncpy(msg.infos, target, INFOS_LEN - 1);
+                strcpy(pending_file, file_name);
 
                 send_msg(sockfd, &msg, file_name);
                 continue;
@@ -340,6 +342,30 @@ struct pollfd fds[FD_TAB_SIZE];
                     rep_file.type = FILE_REJECT;
                     rep_file.pld_len = 0;
                     send_msg(sockfd, &rep_file, NULL);
+                }
+            }
+
+            else if (rep.type == FILE_REJECT) {
+                printf("%s rejected the file transfer.\n", rep.nick_sender);
+                pending_file[0] = '\0'; // On annule le transfert en mémoire
+            }
+            else if (rep.type == FILE_ACCEPT) {
+                printf("%s accepted file transfer.\n", rep.nick_sender);
+                printf("Connecting to %s and sending the file...\n", payload);
+
+                char *colon = strchr(payload, ':');
+                if (colon != NULL) {
+                    *colon = '\0';
+                    char *ip = payload;
+                    char *port = colon + 1;
+
+                    int p2p_fd = handle_connect(ip, port);
+                    
+                    if (p2p_fd != -1) {
+                        printf("[P2P] Connection successful! Ready to send: %s\n", pending_file);
+                        close(p2p_fd); 
+                        pending_file[0] = '\0';
+                    }
                 }
             }
             
