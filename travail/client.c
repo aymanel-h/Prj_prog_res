@@ -9,6 +9,7 @@
 #include <poll.h>
 #include "common.h"
 #include <ctype.h>
+#include <fcntl.h>
 
 int handle_connect(const char *server_name, const char *server_port) {
     struct addrinfo hints, *result, *rp;
@@ -77,6 +78,76 @@ int create_listen_socket(char *ip_port_buffer) {
     sprintf(ip_port_buffer, "127.0.0.1:%d", ntohs(addr.sin_port));
 
     return fd;
+}
+
+void send_file(int p2p_fd, const char *file_name, const char *my_nick) {
+    int file_fd = open(file_name, O_RDONLY);
+    if (file_fd < 0) {
+        perror("[Erreur] Impossible d'ouvrir le fichier");
+        return;
+    }
+
+    char buffer[60000]; 
+    ssize_t bytes_read;
+
+    struct message msg;
+    memset(&msg, 0, sizeof(msg));
+    msg.type = FILE_SEND;
+    strncpy(msg.nick_sender, my_nick, NICK_LEN - 1);
+    strncpy(msg.infos, file_name, INFOS_LEN - 1); 
+
+    while ((bytes_read = read(file_fd, buffer, sizeof(buffer))) > 0) {
+        msg.pld_len = bytes_read; 
+        send_msg(p2p_fd, &msg, buffer);
+    }
+
+    if (bytes_read < 0) {
+        perror("[Erreur] Problème de lecture du fichier");
+    } else {
+        printf("[P2P] Fichier %s envoyé avec succès !\n", file_name);
+    }
+
+    close(file_fd);
+}
+
+void receive_file(int p2p_data_fd) {
+    struct message msg;
+    char *payload = NULL;
+    int file_fd = -1;
+    char file_path[256];
+    char file_name[128] = "";
+
+    system("mkdir -p .resa1/inbox");
+    printf("[P2P] Incoming connection... Receiving the file!\n");
+
+    while (recv_msg(p2p_data_fd, &msg, &payload) > 0) {
+        if (msg.type == FILE_SEND) {
+
+            if (file_fd == -1) {
+                strncpy(file_name, msg.infos, INFOS_LEN - 1);
+                file_name[INFOS_LEN - 1] = '\0';
+                
+                snprintf(file_path, sizeof(file_path), ".resa1/inbox/%s", file_name);
+                
+                file_fd = open(file_path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+                if (file_fd < 0) {
+                    perror("[Erreur] Impossible de créer le fichier de réception");
+                    if (payload) free(payload);
+                    break;
+                }
+            }
+
+            if (msg.pld_len > 0 && payload != NULL) {
+                write(file_fd, payload, msg.pld_len);
+                free(payload);
+            }
+        }
+    }
+
+    if (file_fd != -1) {
+        close(file_fd);
+        printf("%s saved in %s\n", file_name, file_path);
+    }
 }
 
 void run_client(int sockfd) {
@@ -363,6 +434,7 @@ struct pollfd fds[FD_TAB_SIZE];
                     
                     if (p2p_fd != -1) {
                         printf("[P2P] Connection successful! Ready to send: %s\n", pending_file);
+                        send_file(p2p_fd, pending_file, current_nick);
                         close(p2p_fd); 
                         pending_file[0] = '\0';
                     }
@@ -370,6 +442,23 @@ struct pollfd fds[FD_TAB_SIZE];
             }
             
             free(payload);
+
+        }
+        //connexions P2P
+        for (int i = 2; i < FD_TAB_SIZE; i++) {
+            if (fds[i].fd != -1 && (fds[i].revents & POLLIN)) {
+
+                int p2p_data_fd = accept(fds[i].fd, NULL, NULL);
+                if (p2p_data_fd >= 0) {
+                    receive_file(p2p_data_fd);
+                    close(p2p_data_fd);
+                }
+                
+                close(fds[i].fd);
+                fds[i].fd = -1;
+                fds[i].events = 0;
+                fds[i].revents = 0;
+            }
         }
     }
 }
