@@ -110,26 +110,30 @@ void send_file(int p2p_fd, const char *file_name, const char *my_nick) {
     close(file_fd);
 }
 
-void receive_file(int p2p_data_fd) {
+void receive_file(int p2p_data_fd, int sockfd, const char *current_nick) {
     struct message msg;
     char *payload = NULL;
     int file_fd = -1;
     char file_path[256];
     char file_name[128] = "";
+    char sender_nick[NICK_LEN] = ""; // Pour retenir à qui envoyer le ACK
 
     system("mkdir -p .resa1/inbox");
     printf("[P2P] Incoming connection... Receiving the file!\n");
 
     while (recv_msg(p2p_data_fd, &msg, &payload) > 0) {
         if (msg.type == FILE_SEND) {
-
             if (file_fd == -1) {
                 strncpy(file_name, msg.infos, INFOS_LEN - 1);
                 file_name[INFOS_LEN - 1] = '\0';
                 
+                // On mémorise l'expéditeur dès le premier paquet
+                strncpy(sender_nick, msg.nick_sender, NICK_LEN - 1);
+                sender_nick[NICK_LEN - 1] = '\0';
+                
                 snprintf(file_path, sizeof(file_path), ".resa1/inbox/%s", file_name);
                 
-                file_fd = open(file_path, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+                file_fd = open(file_path, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
                 if (file_fd < 0) {
                     perror("[Erreur] Impossible de créer le fichier de réception");
                     if (payload) free(payload);
@@ -147,6 +151,16 @@ void receive_file(int p2p_data_fd) {
     if (file_fd != -1) {
         close(file_fd);
         printf("%s saved in %s\n", file_name, file_path);
+
+        // Envoi du FILE_ACK au serveur pour prévenir l'émetteur
+        struct message ack_msg;
+        memset(&ack_msg, 0, sizeof(struct message));
+        ack_msg.type = FILE_ACK;
+        ack_msg.pld_len = 0;
+        strncpy(ack_msg.nick_sender, current_nick, NICK_LEN - 1);
+        strncpy(ack_msg.infos, sender_nick, INFOS_LEN - 1); // Destinataire = expéditeur initial
+        
+        send_msg(sockfd, &ack_msg, NULL);
     }
 }
 
@@ -440,6 +454,10 @@ struct pollfd fds[FD_TAB_SIZE];
                     }
                 }
             }
+
+            else if (rep.type == FILE_ACK) {
+                printf("[P2P] Transfert terminé : %s a bien reçu le fichier !\n", rep.nick_sender);
+            }
             
             free(payload);
 
@@ -448,9 +466,9 @@ struct pollfd fds[FD_TAB_SIZE];
         for (int i = 2; i < FD_TAB_SIZE; i++) {
             if (fds[i].fd != -1 && (fds[i].revents & POLLIN)) {
 
-                int p2p_data_fd = accept(fds[i].fd, NULL, NULL);
+               int p2p_data_fd = accept(fds[i].fd, NULL, NULL);
                 if (p2p_data_fd >= 0) {
-                    receive_file(p2p_data_fd);
+                    receive_file(p2p_data_fd, sockfd, current_nick);
                     close(p2p_data_fd);
                 }
                 
