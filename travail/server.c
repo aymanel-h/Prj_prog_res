@@ -206,7 +206,8 @@ void dispatch_msg(struct infos_client **head, struct message *msg, char *payload
         case FILE_REQUEST:
             handle_file_request(*head, msg, payload, client_fd);
             break;
-        case FILE_ACCEPT | FILE_REJECT:
+        case FILE_ACCEPT:
+        case FILE_REJECT:
             handle_file_response(*head, msg, payload, client_fd);
             break;
 

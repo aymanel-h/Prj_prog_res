@@ -48,21 +48,56 @@ int handle_connect(const char *server_name, const char *server_port) {
     return sockfd;
 }
 
+int create_listen_socket(char *ip_port_buffer) {
+    int fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (fd < 0) return -1;
+
+    struct sockaddr_in addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = inet_addr("127.0.0.1");
+    addr.sin_port = htons(0); // Port chosen randomly by our OS
+
+    if (bind(fd, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
+        close(fd);
+        return -1;
+    }
+
+    if (listen(fd, 1) < 0) {
+        close(fd);
+        return -1;
+    }
+
+    socklen_t len = sizeof(addr);
+    if (getsockname(fd, (struct sockaddr*)&addr, &len) == -1) {
+        close(fd);
+        return -1;
+    }
+
+    sprintf(ip_port_buffer, "127.0.0.1:%d", ntohs(addr.sin_port));
+
+    return fd;
+}
+
 void run_client(int sockfd) {
-    struct pollfd fds[2];
+struct pollfd fds[FD_TAB_SIZE];
+    for (int i = 0; i < FD_TAB_SIZE; i++) {
+        fds[i].fd = -1;
+        fds[i].events = 0;
+        fds[i].revents = 0;
+    }
+
     fds[0].fd = STDIN_FILENO;
     fds[0].events = POLLIN;
-    fds[0].revents = 0;
 
     fds[1].fd = sockfd;
     fds[1].events = POLLIN;
-    fds[1].revents = 0;
 
     char current_nick[NICK_LEN] = "";
     char buffer[MSG_LEN];
 
     while (1) {
-        int ret = poll(fds, 2, -1);
+        int ret = poll(fds, FD_TAB_SIZE, -1);
         die(ret, "poll()");
 
         if (fds[0].revents & POLLIN) {
@@ -190,24 +225,53 @@ void run_client(int sockfd) {
                 send_msg(sockfd, &msg, text);
                 continue;
             }
-            else if(strncmp(buffer,"/send",5) == 0) {
+            else if (strncmp(buffer, "/send ", 6) == 0) {
                 if (strlen(current_nick) == 0) {
                     printf("[Client] : Please set a nickname first with /nick <name>.\n");
                     continue;
                 }
-                char *text = buffer + 5;
-                while (*text == ' ') text++;
-                if (strlen(text) == 0) {
-                    printf("Usage: /send <nickname> <message>\n");
+
+                char target[INFOS_LEN] = {0};
+                char file_name[MSG_LEN] = {0};
+
+                int i = 6;
+                int j = 0;
+                // skip the spaces between /send and the pseudo
+                while (buffer[i] == ' ') {
+                    i++;
+                }
+                // copying the pseudo
+                while (buffer[i] != ' ' && buffer[i] != '\0' && j < INFOS_LEN - 1) {
+                    target[j] = buffer[i];
+                    i++;
+                    j++;
+                }
+                target[j] = '\0';
+
+                //Same process to get the file name :D
+                while (buffer[i] == ' ') {
+                    i++;
+                }
+
+                j = 0;
+                while (buffer[i] != '\0' && j < MSG_LEN - 1) {
+                    file_name[j] = buffer[i];
+                    i++;
+                    j++;
+                }
+                file_name[j] = '\0';
+
+                if (strlen(target) == 0 || strlen(file_name) == 0) {
+                    printf("Usage: /send <nickname> <file_name>\n");
                     continue;
                 }
-                
+
                 msg.type = FILE_REQUEST;
-                msg.pld_len = strlen(text) + 1;
-                strcpy(msg.nick_sender, current_nick);
-                strcpy(msg.infos, current_nick);
-                send_msg(sockfd, &msg, text);
-                
+                msg.pld_len = strlen(file_name) + 1;
+                strncpy(msg.nick_sender, current_nick, NICK_LEN - 1);
+                strncpy(msg.infos, target, INFOS_LEN - 1);
+
+                send_msg(sockfd, &msg, file_name);
                 continue;
             }
 
@@ -240,21 +304,42 @@ void run_client(int sockfd) {
                     current_nick[NICK_LEN - 1] = '\0';
                 }
             }
-            else if(rep.type==FILE_REQUEST){
-                char *i=strchr(payload,' ');
-                printf("user1 wants you to accept the transfer of the file named %s. Do you accept? [Y/N]\n", i+1);
+           else if (rep.type == FILE_REQUEST) {
+                printf("%s wants you to accept the transfer of the file named \"%s\". Do you accept? [Y/N]\n", rep.nick_sender, payload);
+                
                 char choice;
                 scanf(" %c", &choice);
+                // vider le buffer du clavier pour le prochain tour de boucle
+                int c; while ((c = getchar()) != '\n' && c != EOF);
+
+                struct message rep_file;
+                memset(&rep_file, 0, sizeof(struct message));
+                strncpy(rep_file.nick_sender, current_nick, NICK_LEN - 1);
+                strncpy(rep_file.infos, rep.nick_sender, INFOS_LEN - 1);
+                
                 if (choice == 'Y' || choice == 'y') {
-                    printf("File transfer accepted.\n");
-                    struct message rep_accept;
-                    rep_accept.type = FILE_ACCEPT   ;
-                    send_msg(sockfd, &rep_accept, "accepted");
+                    char ip_port[128];
+                    int listen_fd = create_listen_socket(ip_port);
+                    
+                    if (listen_fd != -1) {
+                        for (int j = 2; j < FD_TAB_SIZE; j++) {
+                            if (fds[j].fd == -1) {
+                                fds[j].fd = listen_fd;
+                                fds[j].events = POLLIN;
+                                break;
+                            }
+                        }
+                        
+                        rep_file.type = FILE_ACCEPT;
+                        rep_file.pld_len = strlen(ip_port) + 1;
+                        send_msg(sockfd, &rep_file, ip_port); // Le payload contient l'IP et le port
+                        printf("File transfer accepted. Listening on %s...\n", ip_port);
+                    }
                 } else {
                     printf("File transfer rejected.\n");
-                    struct message rep_reject;
-                    rep_reject.type = FILE_REJECT;
-                    send_msg(sockfd, &rep_reject, "rejected");
+                    rep_file.type = FILE_REJECT;
+                    rep_file.pld_len = 0;
+                    send_msg(sockfd, &rep_file, NULL);
                 }
             }
             
